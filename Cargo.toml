@@ -1,0 +1,19 @@
+[workspace]
+members = [
+	"bin/node/cli",
+	"bin/node/inspect",
+	"bin/node/primitives",
+	"bin/node/runtime",
+	"bin/utils/subkey",
+	"frame/assets",
+	"frame/assets/rpc",
+	"frame/bridge-eos",
+	"frame/convert",
+	"frame/convert/rpc",
+	"frame/proxy-validator",
+	"frame/swap",
+	"frame/voucher",
+]
+
+[profile.release]
+panic = "unwind"
