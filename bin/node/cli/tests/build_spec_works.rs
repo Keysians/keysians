@@ -14,22 +14,24 @@
 // You should have received a copy of the GNU General Public License
 // along with Keysians.  If not, see <http://www.gnu.org/licenses/>.
 
-//! THIS FILE WAS AUTO-GENERATED USING THE SUBSTRATE BENCHMARK CLI VERSION 2.0.0-rc5
+use assert_cmd::cargo::cargo_bin;
+use std::process::Command;
+use tempfile::tempdir;
 
-#![allow(unused_parens)]
+#[test]
+fn build_spec_works() {
+	let base_path = tempdir().expect("could not create a temp dir");
 
-use frame_support::weights::{Weight, constants::RocksDbWeight as DbWeight};
+	let output = Command::new(cargo_bin("substrate"))
+		.args(&["build-spec", "--dev", "-d"])
+		.arg(base_path.path())
+		.output()
+		.unwrap();
+	assert!(output.status.success());
 
-pub struct WeightInfo;
-impl pallet_timestamp::WeightInfo for WeightInfo {
-	// WARNING! Some components were not used: ["t"]
-	fn set() -> Weight {
-		(9133000 as Weight)
-			.saturating_add(DbWeight::get().reads(2 as Weight))
-			.saturating_add(DbWeight::get().writes(1 as Weight))
-	}
-	// WARNING! Some components were not used: ["t"]
-	fn on_finalize() -> Weight {
-		(5915000 as Weight)
-	}
+	// Make sure that the `dev` chain folder exists, but the `db` doesn't
+	assert!(base_path.path().join("chains/dev/").exists());
+	assert!(!base_path.path().join("chains/dev/db").exists());
+
+	let _value: serde_json::Value = serde_json::from_slice(output.stdout.as_slice()).unwrap();
 }

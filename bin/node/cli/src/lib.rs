@@ -45,7 +45,3 @@ pub use browser::*;
 pub use cli::*;
 #[cfg(feature = "cli")]
 pub use command::*;
-
-// replaced local crate node-primitives and node-rpc
-mod executor;
-mod rpc;

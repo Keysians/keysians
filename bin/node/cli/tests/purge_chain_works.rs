@@ -14,22 +14,28 @@
 // You should have received a copy of the GNU General Public License
 // along with Keysians.  If not, see <http://www.gnu.org/licenses/>.
 
-//! THIS FILE WAS AUTO-GENERATED USING THE SUBSTRATE BENCHMARK CLI VERSION 2.0.0-rc5
+use assert_cmd::cargo::cargo_bin;
+use std::process::Command;
+use tempfile::tempdir;
 
-#![allow(unused_parens)]
+pub mod common;
 
-use frame_support::weights::{Weight, constants::RocksDbWeight as DbWeight};
+#[test]
+#[cfg(unix)]
+fn purge_chain_works() {
+	let base_path = tempdir().expect("could not create a temp dir");
 
-pub struct WeightInfo;
-impl pallet_timestamp::WeightInfo for WeightInfo {
-	// WARNING! Some components were not used: ["t"]
-	fn set() -> Weight {
-		(9133000 as Weight)
-			.saturating_add(DbWeight::get().reads(2 as Weight))
-			.saturating_add(DbWeight::get().writes(1 as Weight))
-	}
-	// WARNING! Some components were not used: ["t"]
-	fn on_finalize() -> Weight {
-		(5915000 as Weight)
-	}
+	common::run_dev_node_for_a_while(base_path.path());
+
+	let status = Command::new(cargo_bin("substrate"))
+		.args(&["purge-chain", "--dev", "-d"])
+		.arg(base_path.path())
+		.arg("-y")
+		.status()
+		.unwrap();
+	assert!(status.success());
+
+	// Make sure that the `dev` chain folder exists, but the `db` is deleted.
+	assert!(base_path.path().join("chains/dev/").exists());
+	assert!(!base_path.path().join("chains/dev/db").exists());
 }

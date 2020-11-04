@@ -39,10 +39,7 @@ use sp_core::{
 	OpaqueMetadata,
 };
 pub use node_primitives::{AccountId, Signature};
-use node_primitives::{
-	AccountIndex, Balance, BlockNumber, Cost, Hash, Income, Index, Moment, Price,
-	BridgeAssetTo, AssetId, Precision, TokenSymbol, ConvertPrice, RatePerBlock, RewardHandler
-};
+use node_primitives::{AccountIndex, Balance, BlockNumber, Hash, Index, Moment};
 use sp_api::impl_runtime_apis;
 use sp_runtime::{
 	Permill, Perbill, Perquintill, Percent, ApplyExtrinsicResult,
@@ -60,7 +57,6 @@ use sp_version::NativeVersion;
 use pallet_grandpa::{AuthorityId as GrandpaId, AuthorityList as GrandpaAuthorityList};
 use pallet_grandpa::fg_primitives;
 use pallet_im_online::sr25519::AuthorityId as ImOnlineId;
-use pallet_bridge_eos::sr25519::{AuthorityId as BridgeEosId};
 use sp_authority_discovery::AuthorityId as AuthorityDiscoveryId;
 use pallet_transaction_payment_rpc_runtime_api::RuntimeDispatchInfo;
 pub use pallet_transaction_payment::{Multiplier, TargetedFeeAdjustment};
@@ -89,6 +85,9 @@ use sp_runtime::generic::Era;
 
 /// Weights for pallets used in the runtime.
 mod weights;
+
+/// mapping erc20 token
+pub mod claims;
 
 // Make the WASM binary available.
 #[cfg(feature = "std")]
@@ -249,7 +248,8 @@ impl InstanceFilter<Call> for ProxyType {
 				Call::Society(..) |
 				Call::TechnicalCommittee(..) |
 				Call::Elections(..) |
-				Call::Treasury(..)
+				Call::Treasury(..) |
+				Call::Claims(..)
 			),
 			ProxyType::Staking => matches!(c, Call::Staking(..)),
 		}
@@ -337,7 +337,7 @@ impl pallet_indices::Trait for Runtime {
 }
 
 parameter_types! {
-	pub const ExistentialDeposit: Balance = 1 * CENTS;
+	pub const ExistentialDeposit: Balance = 1 * DOLLARS;
 	// For weight estimation, we assume that the most locks on an individual account will be 50.
 	// This number may need to be adjusted in the future if this assumption no longer holds true.
 	pub const MaxLocks: u32 = 50;
@@ -354,7 +354,7 @@ impl pallet_balances::Trait for Runtime {
 }
 
 parameter_types! {
-	pub const TransactionByteFee: Balance = MILLICENTS / 10;
+	pub const TransactionByteFee: Balance = 10 * MILLICENTS;
 	pub const TargetBlockFullness: Perquintill = Perquintill::from_percent(25);
 	pub AdjustmentVariable: Multiplier = Multiplier::saturating_from_rational(1, 100_000);
 	pub MinimumMultiplier: Multiplier = Multiplier::saturating_from_rational(1, 1_000_000_000u128);
@@ -434,7 +434,8 @@ pallet_staking_reward_curve::build! {
 }
 
 parameter_types! {
-	pub const SessionsPerEra: sp_staking::SessionIndex = 6;
+	// pub const SessionsPerEra: sp_staking::SessionIndex = 6;
+	pub const SessionsPerEra: sp_staking::SessionIndex = 5;
 	pub const BondingDuration: pallet_staking::EraIndex = 24 * 28;
 	pub const SlashDeferDuration: pallet_staking::EraIndex = 24 * 7; // 1/4 the bonding duration.
 	pub const RewardCurve: &'static PiecewiseLinear<'static> = &REWARD_CURVE;
@@ -727,6 +728,7 @@ impl<LocalCall> frame_system::offchain::CreateSignedTransaction<LocalCall> for R
 			frame_system::CheckNonce::<Runtime>::from(nonce),
 			frame_system::CheckWeight::<Runtime>::new(),
 			pallet_transaction_payment::ChargeTransactionPayment::<Runtime>::from(tip),
+			claims::PrevalidateAttests::<Runtime>::new(),
 		);
 		let raw_payload = SignedPayload::new(call, extra)
 			.map_err(|e| {
@@ -741,6 +743,18 @@ impl<LocalCall> frame_system::offchain::CreateSignedTransaction<LocalCall> for R
 		let (call, extra, _) = raw_payload.deconstruct();
 		Some((call, (address, signature.into(), extra)))
 	}
+}
+
+parameter_types! {
+	pub Prefix: &'static [u8] = b"Pay KENs to the Keysians account:";
+}
+
+impl claims::Trait for Runtime {
+	type Event = Event;
+	type VestingSchedule = Vesting;
+	type Prefix = Prefix;
+	/// At least 3/4 of the council must agree to a claim move before it can happen.
+	type MoveClaimOrigin = pallet_collective::EnsureProportionAtLeast<_3, _4, AccountId, CouncilCollective>;
 }
 
 impl frame_system::offchain::SigningTypes for Runtime {
@@ -889,98 +903,6 @@ impl pallet_vesting::Trait for Runtime {
 	type WeightInfo = weights::pallet_vesting::WeightInfo;
 }
 
-// keysians rumtine time
-impl pallet_assets::Trait for Runtime {
-	type Event = Event;
-	type Balance = Balance;
-	type AssetId = AssetId;
-	type Price = Price;
-	type Cost = Cost;
-	type Income = Income;
-	type Convert = ConvertPrice;
-	type AssetRedeem = ();
-	type FetchConvertPrice = Convert;
-}
-
-impl pallet_voucher::Trait for Runtime {
-	type Event = Event;
-	type Balance = Balance;
-}
-
-parameter_types! {
-	// 3 hours(1800 blocks) as an era
-	pub const ConvertDuration: BlockNumber = 3 * 60 * MINUTES;
-	pub const ConvertPricePrecision: Balance = 1 * DOLLARS;
-}
-
-impl pallet_convert::Trait for Runtime {
-	type Event = Event;
-	type ConvertPrice = ConvertPrice;
-	type RatePerBlock = RatePerBlock;
-	type AssetTrait = Assets;
-	type Balance = Balance;
-	type AssetId = AssetId;
-	type Cost = Cost;
-	type Income = Income;
-	type ConvertDuration = ConvertDuration;
-	type ConvertPricePrecision = ConvertPricePrecision;
-}
-
-
-impl pallet_bridge_eos::Trait for Runtime {
-	type AuthorityId = BridgeEosId;
-	type Event = Event;
-	type Balance = Balance;
-	type AssetId = AssetId;
-	type Cost = Cost;
-	type Income = Income;
-	type Precision = Precision;
-	type BridgeAssetFrom = ();
-	type Call = Call;
-	type AssetTrait = Assets;
-}
-
-parameter_types! {
-	pub const InitPoolSupply: Balance = 1000 * DOLLARS;
-	// when in a trade, trade_amount / all_amount <= 1 / 2
-	pub const MaximumSwapInRatio: Balance = 2;
-	pub const MinimumBalance: Balance = 1 * DOLLARS;
-	pub const MaximumSwapFee: Balance = 10_000; // 10%
-	pub const MinimumSwapFee: Balance = 1; // 0.0001%
-	pub const FeePrecision: Balance = DOLLARS / 10_000_000;
-}
-
-impl pallet_swap::Trait for Runtime {
-	type Fee = Balance;
-	type Event = Event;
-	type AssetTrait = Assets;
-	type Balance = Balance;
-	type AssetId = AssetId;
-	type Cost = Cost;
-	type Income = Income;
-	type InvariantValue = Balance;
-	type PoolWeight = Balance;
-	type InitPoolSupply = InitPoolSupply;
-	type MaximumSwapInRatio = MaximumSwapInRatio;
-	type MinimumBalance = MinimumBalance;
-	type MaximumSwapFee = MaximumSwapFee;
-	type MinimumSwapFee = MinimumSwapFee;
-	type FeePrecision = FeePrecision;
-}
-
-impl pallet_proxy_validator::Trait for Runtime {
-	type Event = Event;
-	type Balance = Balance;
-	type AssetId = AssetId;
-	type Cost = Cost;
-	type Income = Income;
-	type Precision = Precision;
-	type AssetTrait = Assets;
-	type BridgeAssetTo = BridgeEos;
-	type RewardHandler = Convert;
-}
-
-// keysians rumtine time end
 construct_runtime!(
 	pub enum Runtime where
 		Block = Block,
@@ -1019,13 +941,9 @@ construct_runtime!(
 		Scheduler: pallet_scheduler::{Module, Call, Storage, Event<T>},
 		Proxy: pallet_proxy::{Module, Call, Storage, Event<T>},
 		Multisig: pallet_multisig::{Module, Call, Storage, Event<T>},
-		// Modules from brml
-		Assets: pallet_assets::{Module, Call, Storage, Event<T>, Config<T>},
-		Convert: pallet_convert::{Module, Call, Storage, Event, Config<T>},
-		BridgeEos: pallet_bridge_eos::{Module, Call, Storage, Event<T>, ValidateUnsigned, Config<T>},
-		Swap: pallet_swap::{Module, Call, Storage, Event<T>, Config<T>},
-		Voucher: pallet_voucher::{Module, Call, Storage, Event<T>, Config<T>},
-		ProxyValidator: pallet_proxy_validator::{Module, Call, Storage, Event<T>},
+
+		// Claims. Usable initially.
+		Claims: claims::{Module, Call, Storage, Event<T>, Config<T>, ValidateUnsigned},
 	}
 );
 
@@ -1052,6 +970,7 @@ pub type SignedExtra = (
 	frame_system::CheckNonce<Runtime>,
 	frame_system::CheckWeight<Runtime>,
 	pallet_transaction_payment::ChargeTransactionPayment<Runtime>,
+	claims::PrevalidateAttests<Runtime>,
 );
 /// Unchecked extrinsic type as expected by this runtime.
 pub type UncheckedExtrinsic = generic::UncheckedExtrinsic<Address, Call, Signature, SignedExtra>;
@@ -1301,6 +1220,8 @@ impl_runtime_apis! {
 			let mut batches = Vec::<BenchmarkBatch>::new();
 			let params = (&config, &whitelist);
 
+			add_benchmark!(params, batches, claims, Claims);
+
 			add_benchmark!(params, batches, pallet_babe, Babe);
 			add_benchmark!(params, batches, pallet_balances, Balances);
 			add_benchmark!(params, batches, pallet_collective, Council);
@@ -1325,23 +1246,6 @@ impl_runtime_apis! {
 
 			if batches.is_empty() { return Err("Benchmark not found for this pallet.".into()) }
 			Ok(batches)
-		}
-	}
-
-	// impl asset rpc methods for runtime
-	impl pallet_assets_rpc_runtime_api::AssetsApi<node_primitives::Block, TokenSymbol, AccountId, Balance> for Runtime {
-		fn asset_balances(token_symbol: TokenSymbol, who: AccountId) -> u64 {
-			Assets::asset_balances(token_symbol, who)
-		}
-
-		fn asset_tokens(who: AccountId) -> Vec<TokenSymbol> {
-			Assets::asset_tokens(who)
-		}
-	}
-
-	impl pallet_convert_rpc_runtime_api::ConvertPriceApi<node_primitives::Block, TokenSymbol, node_primitives::ConvertPrice> for Runtime {
-		fn get_convert_rate(token_symbol: TokenSymbol) -> node_primitives::ConvertPrice {
-			Convert::get_convert(token_symbol)
 		}
 	}
 }

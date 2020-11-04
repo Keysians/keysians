@@ -1,9 +1,12 @@
 [package]
 name = "node-runtime"
-version = "0.1.0"
+version = "2.0.0"
 authors = ["eropvolf <eropvolf@gmail.com>"]
 edition = "2018"
 build = "build.rs"
+
+[package.metadata.docs.rs]
+targets = ["x86_64-unknown-linux-gnu"]
 
 [dependencies]
 
@@ -13,15 +16,18 @@ integer-sqrt = { version = "0.1.2" }
 serde = { version = "1.0.102", optional = true }
 static_assertions = "1.1.0"
 hex-literal = { version = "0.3.1", optional = true }
+rustc-hex = { version = "2.0.1", default-features = false }
 
 # primitives
 sp-authority-discovery = { version = "2.0.0", default-features = false }
 sp-consensus-babe = { version = "0.8.0", default-features = false }
-sp-block-builder = { version = "2.0.0", default-features = false }
+sp-block-builder = { default-features = false, version = "2.0.0"}
 sp-inherents = { version = "2.0.0", default-features = false }
+node-primitives = { version = "2.0.0", default-features = false, path = "../primitives" }
 sp-offchain = { version = "2.0.0", default-features = false }
 sp-core = { version = "2.0.0", default-features = false }
 sp-std = { version = "2.0.0", default-features = false }
+sp-io = { version = "2.0.0", default-features = false }
 sp-api = { version = "2.0.0", default-features = false }
 sp-runtime = { version = "2.0.0", default-features = false }
 sp-staking = { version = "2.0.0", default-features = false }
@@ -72,16 +78,6 @@ pallet-utility = { version = "2.0.0", default-features = false }
 pallet-transaction-payment = { version = "2.0.0", default-features = false }
 pallet-transaction-payment-rpc-runtime-api = { version = "2.0.0", default-features = false }
 pallet-vesting = { version = "2.0.0", default-features = false }
-
-node-primitives = { default-features = false, path = "../primitives" }
-pallet-assets = { path = "../../../frame/assets", default-features = false }
-pallet-assets-rpc-runtime-api = { path = "../../../frame/assets/rpc/runtime-api", default-features = false }
-pallet-bridge-eos = { path = "../../../frame/bridge-eos", default-features = false }
-pallet-convert = { path = "../../../frame/convert", default-features = false }
-pallet-convert-rpc-runtime-api = { path = "../../../frame/convert/rpc/runtime-api", default-features = false }
-pallet-proxy-validator = { path = "../../../frame/proxy-validator", default-features = false }
-pallet-swap = { path = "../../../frame/swap", default-features = false }
-pallet-voucher = { path = "../../../frame/voucher", default-features = false }
 
 [build-dependencies]
 wasm-builder-runner = { version = "1.0.5", package = "substrate-wasm-builder-runner" }
@@ -147,12 +143,35 @@ std = [
 	"pallet-society/std",
 	"pallet-recovery/std",
 	"pallet-vesting/std",
-	"pallet-assets/std",
-	"pallet-assets-rpc-runtime-api/std",
-	"pallet-bridge-eos/std",
-	"pallet-convert/std",
-	"pallet-convert-rpc-runtime-api/std",
-	'pallet-proxy-validator/std',
-	"pallet-swap/std",
-	'pallet-voucher/std',
+
+	"rustc-hex/std",
+]
+runtime-benchmarks = [
+	"frame-benchmarking",
+	"frame-support/runtime-benchmarks",
+	"frame-system/runtime-benchmarks",
+	"sp-runtime/runtime-benchmarks",
+	"pallet-babe/runtime-benchmarks",
+	"pallet-balances/runtime-benchmarks",
+	"pallet-collective/runtime-benchmarks",
+	"pallet-contracts/runtime-benchmarks",
+	"pallet-democracy/runtime-benchmarks",
+	"pallet-elections-phragmen/runtime-benchmarks",
+	"pallet-grandpa/runtime-benchmarks",
+	"pallet-identity/runtime-benchmarks",
+	"pallet-im-online/runtime-benchmarks",
+	"pallet-indices/runtime-benchmarks",
+	"pallet-multisig/runtime-benchmarks",
+	"pallet-proxy/runtime-benchmarks",
+	"pallet-scheduler/runtime-benchmarks",
+	"pallet-society/runtime-benchmarks",
+	"pallet-staking/runtime-benchmarks",
+	"pallet-timestamp/runtime-benchmarks",
+	"pallet-treasury/runtime-benchmarks",
+	"pallet-utility/runtime-benchmarks",
+	"pallet-vesting/runtime-benchmarks",
+	"pallet-offences-benchmarking",
+	"pallet-session-benchmarking",
+	"frame-system-benchmarking",
+	"hex-literal",
 ]
